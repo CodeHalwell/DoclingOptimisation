@@ -5,7 +5,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates gcc g++ libgl1-mesa-dev \
     && rm -rf /var/lib/apt/lists/*
 
-ADD https://astral.sh/uv/0.6.0/install.sh /uv-installer.sh
+# uv installer version is configurable to ease updates; default should be reviewed periodically.
+# Security note: For production use, verify the installer checksum before execution.
+# Download the installer, compute its SHA256, and add verification:
+#   RUN echo "EXPECTED_SHA256  /uv-installer.sh" | sha256sum -c -
+ARG UV_INSTALLER_VERSION=0.6.0
+ADD https://astral.sh/uv/${UV_INSTALLER_VERSION}/install.sh /uv-installer.sh
 RUN sh /uv-installer.sh && rm /uv-installer.sh
 ENV PATH="/root/.local/bin:$PATH"
 
@@ -25,6 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache \
 
 # Pre-fetch models using the official CLI tool so they are baked into
 # the image and not downloaded at runtime.
+# The docling-tools command is included in the docling package.
 RUN docling-tools models download
 
 # ---------------------------------------------------------------------
@@ -37,13 +43,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.12/site-packages \
      /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /root/.cache /home/docling/.cache
+COPY --from=builder --chown=docling:docling /root/.cache /home/docling/.cache
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/home/docling/.cache/huggingface
 
-RUN chown -R docling:docling /home/docling
 USER docling
 WORKDIR /home/docling
 COPY --chown=docling:docling process.py .
