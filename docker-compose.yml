@@ -1,0 +1,23 @@
+services:
+  docling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Note: Ensure host directories ./input and ./output exist before running:
+    #   mkdir -p input output
+    volumes:
+      - ./input:/home/docling/input:ro
+      - ./output:/home/docling/output
+    deploy:
+      resources:
+        limits:
+          # Account for model loading overhead (2-3 GB) plus working memory.
+          memory: 6g
+          cpus: "8"
+        reservations:
+          memory: 3g
+          cpus: "4"
+    environment:
+      - HF_HOME=/home/docling/.cache/huggingface
+    entrypoint: ["python", "process.py"]
+    command: ["input/mortgage.pdf"]
