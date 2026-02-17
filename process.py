@@ -81,7 +81,10 @@ def process_mortgage_pdf(pdf_path: str | Path) -> str:
     if not pdf_file.exists():
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
     if not pdf_file.is_file():
-        raise ValueError(f"Path is not a file: {pdf_path}")
+        if pdf_file.is_dir():
+            raise ValueError(f"Path is a directory, not a file: {pdf_path}")
+        else:
+            raise ValueError(f"Path exists but is not a regular file: {pdf_path}")
     
     converter = create_converter(
         num_threads=8,
