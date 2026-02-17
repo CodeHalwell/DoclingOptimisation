@@ -2,7 +2,7 @@
 
 A production-ready guide for deploying [Docling](https://github.com/docling-project/docling) on CPU-only infrastructure, targeting mortgage PDF processing workloads.
 
-> **Docling version:** v2.x (early 2026). API references verified against the official Docling documentation. Performance characteristics are hardware-dependent — no specific timing claims are made.
+> **Docling version:** v2.x (2026). API references verified against the official Docling documentation. Performance characteristics are hardware-dependent — no specific timing claims are made.
 
 ---
 
@@ -137,7 +137,7 @@ markdown = result.document.export_to_markdown()
 | `do_ocr` | `True` | Disable for digital (non-scanned) PDFs |
 | `do_table_structure` | `True` | Table detection and extraction |
 | `table_structure_options.mode` | `ACCURATE` | `FAST` trades quality for speed |
-| `do_picture_description` | `False` | LLM-based image descriptions (off by default) |
+| `do_picture_description` | `False` | Enable LLM-based image descriptions |
 
 ---
 
@@ -223,8 +223,7 @@ pipeline_options = ThreadedPdfPipelineOptions(
         num_threads=8,
         device=AcceleratorDevice.CPU,
     ),
-    ocr_batch_size=4,
-    layout_batch_size=64,
+    layout_batch_size=32,
     table_batch_size=4,
 )
 pipeline_options.do_ocr = False
@@ -261,8 +260,6 @@ Optimal values depend on your hardware (CPU count, available memory) and documen
 For processing multiple documents, use `converter.convert_all()`:
 
 ```python
-from docling.datamodel.document import ConversionSource
-
 sources = [
     "document1.pdf",
     "document2.pdf",

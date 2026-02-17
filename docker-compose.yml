@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Note: Ensure host directories ./input and ./output exist before running:
+    #   mkdir -p input output
     volumes:
       - ./input:/home/docling/input:ro
       - ./output:/home/docling/output

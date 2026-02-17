@@ -5,7 +5,6 @@ Uses the ThreadedStandardPdfPipeline for parallel stage execution
 officially supported parallelism mechanism in Docling v2.x.
 """
 
-import logging
 from pathlib import Path
 
 from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
@@ -17,8 +16,6 @@ from docling.datamodel.pipeline_options import (
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.pipeline.threaded_standard_pdf_pipeline import ThreadedStandardPdfPipeline
-
-_log = logging.getLogger(__name__)
 
 
 def create_converter(
@@ -75,7 +72,17 @@ def process_mortgage_pdf(pdf_path: str | Path) -> str:
 
     Uses the threaded pipeline with table structure detection enabled
     (FAST mode) and OCR disabled for digital PDFs.
+    
+    Raises:
+        FileNotFoundError: If the PDF file does not exist.
+        PermissionError: If the PDF file is not readable.
     """
+    pdf_file = Path(pdf_path)
+    if not pdf_file.exists():
+        raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+    if not pdf_file.is_file():
+        raise ValueError(f"Path is not a file: {pdf_path}")
+    
     converter = create_converter(
         num_threads=8,
         do_ocr=False,
