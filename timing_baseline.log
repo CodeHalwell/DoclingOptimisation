@@ -1,0 +1,33 @@
+[   0.00s] Process started — auto-detected 16 CPUs
+[   0.00s] Input: input.pdf (2163.3 KB)
+[   0.00s] Loading docling libraries...
+[  14.04s] Libraries loaded
+[  14.05s] PyTorch optimized: mkldnn=True, matmul_precision=medium, grad=off
+[  14.05s] Layout model: egret-medium
+[  14.05s] CPU config: 16 threads, OMP=16, MKL=16
+[  14.05s] Threaded pipeline: layout_batch=16, table_batch=4, poll=0.1s
+[  14.05s] Code/formula model: granite_docling
+[  14.05s] Picture description model: smolvlm
+[  14.05s] Pipeline: layout=egret-medium, force_backend_text=True, timeout=120s
+[  14.05s] Building converter...
+[  14.05s] Converter ready
+[  14.05s] Starting document conversion...
+detected formats: [<InputFormat.PDF: 'pdf'>]
+Going to convert document batch...
+Initializing pipeline for ThreadedStandardPdfPipeline with options hash d3d4d4b0a787834936ee5388694d1882
+Loading plugin 'docling_defaults'
+Registered picture descriptions: ['picture_description_vlm_engine', 'vlm', 'api']
+Loading plugin 'docling_defaults'
+Registered ocr engines: ['auto', 'easyocr', 'ocrmac', 'rapidocr', 'tesserocr', 'tesseract']
+Loading plugin 'docling_defaults'
+Registered layout engines: ['layout_object_detection', 'docling_layout_default', 'docling_experimental_table_crops_layout']
+Accelerator device: 'cpu'
+Loading plugin 'docling_defaults'
+Registered table structure engines: ['docling_tableformer']
+Accelerator device: 'cpu'
+Processing document input.pdf
+Finished converting document input.pdf in 85.43 sec.
+[  99.49s] Conversion complete
+[  99.49s] Exporting to markdown...
+[  99.68s] Export complete (50136 chars)
+[  99.70s] Done — total 99.70s

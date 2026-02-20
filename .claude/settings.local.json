@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(firecrawl search:*)",
+      "Bash(firecrawl scrape:*)",
+      "Bash(firecrawl map:*)",
+      "Bash(dir:*)",
+      "Bash(gh search code:*)",
+      "Bash(gh api:*)",
+      "Bash(docker build:*)",
+      "Bash(tee:*)",
+      "Bash(echo:*)",
+      "Bash(uv lock:*)",
+      "Bash(docker run:*)",
+      "Bash(MSYS_NO_PATHCONV=1 docker run:*)",
+      "Bash(DOCKER_BUILDKIT=1 docker build:*)",
+      "WebSearch",
+      "Bash(python:*)",
+      "Bash(pip show:*)",
+      "Bash(uv run python:*)",
+      "WebFetch(domain:docling-project.github.io)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(1)",
+      "Bash(done)",
+      "WebFetch(domain:azure.microsoft.com)",
+      "WebFetch(domain:instances.vantage.sh)",
+      "WebFetch(domain:www.economize.cloud)",
+      "WebFetch(domain:calculator.holori.com)",
+      "WebFetch(domain:www.pump.co)",
+      "WebFetch(domain:turbo360.com)",
+      "WebFetch(domain:cast.ai)",
+      "WebFetch(domain:azure.github.io)",
+      "WebFetch(domain:cloudprice.net)",
+      "WebFetch(domain:www.infracost.io)",
+      "WebFetch(domain:markheath.net)",
+      "WebFetch(domain:techcommunity.microsoft.com)",
+      "Bash(ls:*)"
+    ]
+  }
+}

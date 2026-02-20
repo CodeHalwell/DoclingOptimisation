@@ -23,3 +23,6 @@ Thumbs.db
 # Docker volumes
 input/
 output/
+.venv
+The Co-operative Bank_107.00.pdf
+outputs/

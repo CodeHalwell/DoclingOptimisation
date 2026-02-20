@@ -1,0 +1,50 @@
+[   0.00s] Process started — auto-detected 16 CPUs
+[   0.00s] Input: input.pdf (2163.3 KB)
+[   0.00s] Loading docling libraries...
+[   8.61s] Libraries loaded
+[   8.61s] PyTorch optimized: mkldnn=True, matmul_precision=medium, grad=off
+[   8.61s] Layout model: egret-medium
+[   8.61s] CPU config: 16 threads, OMP=16, MKL=16
+[   8.61s] Threaded pipeline: layout_batch=16, table_batch=4, poll=0.1s
+[   8.61s] Code/formula model: granite_docling
+[   8.61s] Picture description model: smolvlm
+[   8.61s] Pipeline: layout=egret-medium, force_backend_text=True, timeout=120s
+[   8.61s] Building converter...
+[   8.62s] Converter ready
+[   8.62s] Starting document conversion...
+detected formats: [<InputFormat.PDF: 'pdf'>]
+Going to convert document batch...
+Initializing pipeline for ThreadedStandardPdfPipeline with options hash 2dcc50c71a637ff18982839beefc732c
+Loading plugin 'docling_defaults'
+Registered picture descriptions: ['picture_description_vlm_engine', 'vlm', 'api']
+Loading plugin 'docling_defaults'
+Registered ocr engines: ['auto', 'easyocr', 'ocrmac', 'rapidocr', 'tesserocr', 'tesseract']
+Loading plugin 'docling_defaults'
+Registered layout engines: ['layout_object_detection', 'docling_layout_default', 'docling_experimental_table_crops_layout']
+Accelerator device: 'cpu'
+Loading plugin 'docling_defaults'
+Registered table structure engines: ['docling_tableformer']
+Accelerator device: 'cpu'
+Initializing CodeFormulaVlmModel with runtime system: model=ibm-granite/granite-docling-258M, engine=auto_inline
+Initializing auto-inline VLM inference engine...
+Accelerator device: 'cpu'
+Auto-selecting engine for system=Linux, device=cpu
+Selected Transformers engine (default)
+Generated config for transformers: repo_id=ibm-granite/granite-docling-258M, extra_config={'transformers_model_type': <TransformersModelType.AUTOMODEL_IMAGETEXTTOTEXT: 'automodel-imagetexttotext'>, 'extra_generation_config': {'skip_special_tokens': False}}
+Initializing Transformers VLM inference engine...
+Accelerator device: 'cpu'
+Using device: cpu
+Loading model ibm-granite/granite-docling-258M (revision: main, model_type: automodel-imagetexttotext)
+Loaded model ibm-granite/granite-docling-258M (revision: main)
+Auto-inline engine initialized with transformers
+CodeFormulaVlmModel initialized successfully
+Processing document input.pdf
+Batch processed 5 images in 531.94s (106.39s per image)
+Batch processed 1 images in 23.76s (23.76s per image)
+Finished converting document input.pdf in 705.51 sec.
+[ 714.13s] Conversion complete
+[ 714.13s] Exporting to markdown...
+[ 714.40s] Export complete (54866 chars)
+Transformers runtime cleaned up
+Auto-inline engine cleaned up
+[ 714.57s] Done — total 714.57s
