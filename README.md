@@ -357,7 +357,7 @@ services:
           cpus: "4"
     environment:
       - HF_HOME=/home/docling/.cache/huggingface
-        entrypoint: ["uv", "run", "--frozen", "process.py"]
+    entrypoint: ["uv", "run", "--frozen", "process.py"]
     command: ["input/mortgage.pdf"]
 ```
 

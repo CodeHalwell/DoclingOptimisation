@@ -12,6 +12,7 @@ resources the host allocates.
 import logging
 import os
 import platform
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -53,8 +54,9 @@ def _apply_torch_optimizations() -> None:
     torch.set_float32_matmul_precision("medium")
     torch.set_grad_enabled(False)
 
+    mkldnn_backend = getattr(torch.backends, "mkldnn", None)
     _step(
-        f"PyTorch optimized: mkldnn={getattr(torch.backends.mkldnn, 'enabled', False)}, "
+        f"PyTorch optimized: mkldnn={getattr(mkldnn_backend, 'enabled', False)}, "
         f"matmul_precision=medium, grad=off"
     )
 
@@ -78,15 +80,16 @@ def detect_cpu_count() -> int:
     # to reduce contention from efficiency cores for CPU-heavy inference.
     if platform.system() == "Darwin":
         for cmd in (
-            "sysctl -n hw.perflevel0.physicalcpu",
-            "sysctl -n hw.physicalcpu",
-            "sysctl -n hw.ncpu",
+            ["sysctl", "-n", "hw.perflevel0.physicalcpu"],
+            ["sysctl", "-n", "hw.physicalcpu"],
+            ["sysctl", "-n", "hw.ncpu"],
         ):
             try:
-                value = os.popen(cmd).read().strip()
+                result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+                value = result.stdout.strip()
                 if value.isdigit() and int(value) > 0:
                     return int(value)
-            except Exception:
+            except (OSError, subprocess.CalledProcessError, ValueError):
                 pass
 
     # cgroup v2 (modern Docker / Kubernetes)

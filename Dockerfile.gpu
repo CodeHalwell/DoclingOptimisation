@@ -18,8 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ARG UV_INSTALLER_VERSION=0.10.4
+ARG UV_INSTALLER_SHA256=169fd7c68bdd40f80ab25635b1e10adfc8cef58b4935017e8560c87639d4544c
 ADD https://astral.sh/uv/${UV_INSTALLER_VERSION}/install.sh /uv-installer.sh
-RUN sh /uv-installer.sh && rm /uv-installer.sh
+RUN echo "${UV_INSTALLER_SHA256}  /uv-installer.sh" | sha256sum -c - \
+    && sh /uv-installer.sh && rm /uv-installer.sh
 ENV PATH="/root/.local/bin:$PATH"
 
 ENV UV_COMPILE_BYTECODE=1 \
@@ -35,9 +37,10 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache-gpu \
 # Step 2: Replace CPU PyTorch with CUDA 12.4 variant.
 # The CUDA wheels are ~2.5 GB but include all necessary CUDA runtime libraries,
 # so no nvidia/cuda base image is needed.
+# NOTE: Keep these versions in sync with uv.lock (same base versions, CUDA +cu124 wheels).
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache-gpu \
     uv pip install \
-    torch torchvision \
+    torch==2.10.0+cu124 torchvision==0.25.0+cu124 \
     --index-url https://download.pytorch.org/whl/cu124 \
     --reinstall
 
