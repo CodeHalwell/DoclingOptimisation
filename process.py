@@ -11,6 +11,7 @@ resources the host allocates.
 
 import logging
 import os
+import platform
 import sys
 import time
 from pathlib import Path
@@ -47,12 +48,13 @@ def _apply_torch_optimizations() -> None:
     """
     import torch
 
-    torch.backends.mkldnn.enabled = True
+    if hasattr(torch.backends, "mkldnn") and torch.backends.mkldnn.is_available():
+        torch.backends.mkldnn.enabled = True
     torch.set_float32_matmul_precision("medium")
     torch.set_grad_enabled(False)
 
     _step(
-        f"PyTorch optimized: mkldnn={torch.backends.mkldnn.enabled}, "
+        f"PyTorch optimized: mkldnn={getattr(torch.backends.mkldnn, 'enabled', False)}, "
         f"matmul_precision=medium, grad=off"
     )
 
@@ -71,6 +73,21 @@ def detect_cpu_count() -> int:
     env_override = os.environ.get("DOCLING_NUM_THREADS")
     if env_override:
         return int(env_override)
+
+    # macOS (especially Apple Silicon): prefer performance physical cores
+    # to reduce contention from efficiency cores for CPU-heavy inference.
+    if platform.system() == "Darwin":
+        for cmd in (
+            "sysctl -n hw.perflevel0.physicalcpu",
+            "sysctl -n hw.physicalcpu",
+            "sysctl -n hw.ncpu",
+        ):
+            try:
+                value = os.popen(cmd).read().strip()
+                if value.isdigit() and int(value) > 0:
+                    return int(value)
+            except Exception:
+                pass
 
     # cgroup v2 (modern Docker / Kubernetes)
     try:
@@ -102,7 +119,7 @@ def apply_thread_env(cpus: int) -> None:
     DOCLING_NUM_THREADS or docker run -e DOCLING_NUM_THREADS take
     precedence through detect_cpu_count().
     """
-    for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
         os.environ[var] = str(cpus)
 
 
@@ -176,10 +193,23 @@ def create_converter(
     apply_thread_env(num_threads)
     _step(f"CPU config: {num_threads} threads, OMP={os.environ.get('OMP_NUM_THREADS')}, MKL={os.environ.get('MKL_NUM_THREADS')}")
 
+    device_name = os.environ.get("DOCLING_DEVICE", "cpu").strip().lower()
+    device_map = {
+        "cpu": AcceleratorDevice.CPU,
+        "mps": AcceleratorDevice.MPS,
+        "cuda": AcceleratorDevice.CUDA,
+        "xpu": AcceleratorDevice.XPU,
+        "auto": AcceleratorDevice.AUTO,
+    }
+    accel_device = device_map.get(device_name, AcceleratorDevice.CPU)
+    if device_name not in device_map:
+        _step(f"Unknown DOCLING_DEVICE={device_name!r}; falling back to CPU")
+
     accel = AcceleratorOptions(
         num_threads=num_threads,
-        device=AcceleratorDevice.CPU,
+        device=accel_device,
     )
+    _step(f"Accelerator device requested: {accel_device.value}")
 
     if use_threaded:
         layout_batch = min(num_threads * 2, 16)

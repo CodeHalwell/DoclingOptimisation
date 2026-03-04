@@ -29,15 +29,15 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache \
 ENV PATH="/build/.venv/bin:$PATH"
 RUN docling-tools models download
 # Pre-fetch the EGRET-medium layout model (faster than default Heron on CPU)
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('docling-project/docling-layout-egret-medium')"
+RUN uv run --frozen python -c "from huggingface_hub import snapshot_download; snapshot_download('docling-project/docling-layout-egret-medium')"
 # Pre-fetch granite-docling-258M for code/formula enrichment (258M, lightweight)
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('ibm-granite/granite-docling-258M')"
+RUN uv run --frozen python -c "from huggingface_hub import snapshot_download; snapshot_download('ibm-granite/granite-docling-258M')"
 # Pre-fetch SmolVLM-256M for picture description (256M, lightweight)
-RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('HuggingFaceTB/SmolVLM-256M-Instruct')"
+RUN uv run --frozen python -c "from huggingface_hub import snapshot_download; snapshot_download('HuggingFaceTB/SmolVLM-256M-Instruct')"
 # Pre-download RapidOCR torch models using a heredoc script
 # (RapidOCR defaults to onnxruntime in builder; we download torch models directly)
 RUN <<'PYEOF'
-python3 -c "
+uv run --frozen python -c "
 from pathlib import Path
 import importlib.resources, urllib.request, sys
 
@@ -78,23 +78,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder --chown=docling:docling /build/.venv /home/docling/.venv
 COPY --from=builder --chown=docling:docling /root/.cache /home/docling/.cache
+COPY --from=builder /root/.local/bin/uv /usr/local/bin/uv
+COPY --from=builder /root/.local/bin/uvx /usr/local/bin/uvx
 
-# LD_PRELOAD tcmalloc: ~35% faster memory allocation for ML workloads.
-# THP_MEM_ALLOC_ENABLE: use transparent huge pages to reduce TLB misses.
-# ONEDNN_MAX_CPU_ISA: unlock Intel AMX (bfloat16 matmul) on Sapphire/Emerald Rapids.
-#   Falls back gracefully to AVX-512 or AVX2 on older CPUs.
+# Cross-platform safe defaults (works on amd64 and arm64/Apple Silicon).
+# Optional x86-only tuning (set at runtime when applicable):
+#   LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4
+#   ONEDNN_MAX_CPU_ISA=AVX512_CORE_AMX
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/home/docling/.cache/huggingface \
     HF_HUB_ETAG_TIMEOUT=0 \
     HF_HUB_DOWNLOAD_TIMEOUT=5 \
-    ONEDNN_MAX_CPU_ISA=AVX512_CORE_AMX \
-    LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc.so.4 \
-    THP_MEM_ALLOC_ENABLE=1 \
+    MALLOC_ARENA_MAX=2 \
     PATH="/home/docling/.venv/bin:$PATH" \
     VIRTUAL_ENV=/home/docling/.venv
 
 USER docling
 WORKDIR /home/docling
+COPY --chown=docling:docling pyproject.toml uv.lock ./
 COPY --chown=docling:docling process.py .
-ENTRYPOINT ["python", "process.py"]
+ENTRYPOINT ["uv", "run", "--frozen", "process.py"]
