@@ -1,0 +1,139 @@
+# syntax=docker/dockerfile:1
+# Azure Container App GPU-optimised build
+# Target: Consumption GPU NC8as-T4 — up to 8 vCPUs, 56 Gi memory, NVIDIA T4 (16 GB VRAM)
+#
+# Strategy:
+#   1. uv sync installs all deps with CPU-only PyTorch (from the lock file)
+#   2. CUDA 12.4 PyTorch wheels replace CPU wheels (same version, CUDA-enabled)
+#   3. onnxruntime-gpu replaces CPU onnxruntime for GPU-accelerated ONNX inference
+#   4. Models pre-fetched at build time (same as CPU build)
+#
+# The NVIDIA GPU drivers are mounted by Azure Container Apps at runtime.
+# PyTorch CUDA wheels bundle their own CUDA runtime libraries (libcudart, etc.).
+
+FROM --platform=linux/amd64 python:3.12-slim-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates gcc g++ libgl1-mesa-dev libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG UV_INSTALLER_VERSION=0.10.4
+ADD https://astral.sh/uv/${UV_INSTALLER_VERSION}/install.sh /uv-installer.sh
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+ENV PATH="/root/.local/bin:$PATH"
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+WORKDIR /build
+
+# Step 1: Install all dependencies from the lock file (CPU PyTorch).
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache-gpu \
+    uv sync --frozen --no-dev
+
+# Step 2: Replace CPU PyTorch with CUDA 12.4 variant.
+# The CUDA wheels are ~2.5 GB but include all necessary CUDA runtime libraries,
+# so no nvidia/cuda base image is needed.
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache-gpu \
+    uv pip install \
+    torch torchvision \
+    --index-url https://download.pytorch.org/whl/cu124 \
+    --reinstall
+
+# Step 3: Replace CPU ONNX Runtime with GPU variant for CUDA execution provider.
+# Must uninstall CPU onnxruntime first to avoid import conflicts.
+# Pin version for reproducibility — 1.20.1 is tested with CUDA 12.4.
+# Note: onnxruntime-gpu bundles its own CUDA/cuDNN runtime libs; additional
+# CUDA libraries (e.g. libcudnn from the Azure GPU driver mount) may be
+# needed if the bundled versions are insufficient.
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache-gpu \
+    uv pip uninstall onnxruntime && \
+    uv pip install onnxruntime-gpu==1.20.1
+
+# Pre-fetch models so containers start without network access.
+ENV PATH="/build/.venv/bin:$PATH"
+RUN docling-tools models download
+
+RUN uv run --frozen python -c \
+    "from huggingface_hub import snapshot_download; snapshot_download('docling-project/docling-layout-egret-medium')"
+RUN uv run --frozen python -c \
+    "from huggingface_hub import snapshot_download; snapshot_download('ibm-granite/granite-docling-258M')"
+RUN uv run --frozen python -c \
+    "from huggingface_hub import snapshot_download; snapshot_download('HuggingFaceTB/SmolVLM-256M-Instruct')"
+
+# Pre-download RapidOCR torch models
+RUN <<'PYEOF'
+uv run --frozen python -c "
+from pathlib import Path
+import importlib.resources, urllib.request
+
+models_dir = Path(importlib.resources.files('rapidocr')) / 'models'
+models_dir.mkdir(exist_ok=True)
+
+base = 'https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.6.0/torch/PP-OCRv4'
+files = [
+    ('det', 'ch_PP-OCRv4_det_infer.pth'),
+    ('cls', 'ch_ptocr_mobile_v2.0_cls_infer.pth'),
+    ('rec', 'ch_PP-OCRv4_rec_infer.pth'),
+]
+for sub, name in files:
+    dest = models_dir / name
+    if not dest.exists():
+        url = f'{base}/{sub}/{name}'
+        print(f'Downloading {name} from {url}...')
+        urllib.request.urlretrieve(url, dest)
+        print(f'  Saved to {dest} ({dest.stat().st_size / 1024:.0f} KB)')
+
+keys_url = 'https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.6.0/torch/PP-OCRv4/rec/ppocr_keys_v1.txt'
+keys_dest = models_dir / 'ppocr_keys_v1.txt'
+if not keys_dest.exists():
+    print('Downloading ppocr_keys_v1.txt...')
+    urllib.request.urlretrieve(keys_url, keys_dest)
+
+print('RapidOCR models pre-downloaded successfully')
+"
+PYEOF
+
+# ---------------------------------------------------------------------
+FROM --platform=linux/amd64 python:3.12-slim-bookworm AS runtime
+
+RUN groupadd -r docling && useradd -r -g docling -d /home/docling -m docling
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1-mesa-glx libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder --chown=docling:docling /build/.venv /home/docling/.venv
+COPY --from=builder --chown=docling:docling /root/.cache /home/docling/.cache
+COPY --from=builder /root/.local/bin/uv /usr/local/bin/uv
+COPY --from=builder /root/.local/bin/uvx /usr/local/bin/uvx
+
+# GPU-specific configuration:
+#   DOCLING_DEVICE=cuda      — tells process.py to use CUDA accelerator
+#   DOCLING_NUM_THREADS=8    — matches the 8 vCPU allocation for CPU-bound stages
+#   NVIDIA_VISIBLE_DEVICES   — allows Azure runtime to expose the T4 GPU
+#   PYTORCH_CUDA_ALLOC_CONF  — tuning for T4's 16 GB VRAM:
+#     expandable_segments:True — reduces fragmentation on the T4's limited VRAM
+#     max_split_size_mb:256   — prevents small allocations from fragmenting large blocks
+#
+# Note: No tcmalloc LD_PRELOAD — GPU inference is memory-managed by CUDA allocator,
+# tcmalloc can interfere with CUDA memory operations.
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HOME=/home/docling/.cache/huggingface \
+    HF_HUB_ETAG_TIMEOUT=0 \
+    HF_HUB_DOWNLOAD_TIMEOUT=5 \
+    MALLOC_ARENA_MAX=4 \
+    PATH="/home/docling/.venv/bin:$PATH" \
+    VIRTUAL_ENV=/home/docling/.venv \
+    DOCLING_DEVICE=cuda \
+    DOCLING_NUM_THREADS=8 \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:256
+
+USER docling
+WORKDIR /home/docling
+COPY --chown=docling:docling pyproject.toml uv.lock ./
+COPY --chown=docling:docling process.py .
+ENTRYPOINT ["uv", "run", "--frozen", "process.py"]
