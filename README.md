@@ -357,11 +357,83 @@ services:
           cpus: "4"
     environment:
       - HF_HOME=/home/docling/.cache/huggingface
-    entrypoint: ["python", "process.py"]
+    entrypoint: ["uv", "run", "--frozen", "process.py"]
     command: ["input/mortgage.pdf"]
 ```
 
 **Memory sizing:** The standard pipeline models require 2–3 GB during loading. Set memory limits to account for this overhead plus working memory for document processing.
+
+---
+
+## macOS Optimisation Notes
+
+This repository now includes mac-friendly defaults (including Apple Silicon):
+
+- `process.py` auto-detects macOS CPU counts using `sysctl` and prefers performance cores.
+- Threading env vars are aligned automatically (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `VECLIB_MAXIMUM_THREADS`, `NUMEXPR_NUM_THREADS`).
+- `Dockerfile` removes x86-only defaults (`LD_PRELOAD` with x86 tcmalloc path and Intel-only `ONEDNN_MAX_CPU_ISA`) so arm64 containers start cleanly.
+- `docker-compose.yml` uses Compose-native limits (`mem_limit`, `cpus`) so limits apply on Docker Desktop for macOS.
+
+### Recommended macOS run commands
+
+```bash
+mkdir -p input output
+DOCLING_NUM_THREADS=10 docker compose up --build
+```
+
+### Local `uv` execution
+
+Run all project Python files with `uv`:
+
+```bash
+uv run --frozen main.py
+uv run --frozen process.py input/mortgage.pdf
+```
+
+### One-command thread benchmark
+
+Run the 6/10/12 thread benchmark and print a summary table:
+
+```bash
+make benchmark
+```
+
+Optional: benchmark a different PDF path:
+
+```bash
+bash scripts/benchmark_threads.sh input/your_file.pdf
+```
+
+If you need x86 image compatibility testing on Apple Silicon:
+
+```bash
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose up --build
+```
+
+### Docker Desktop settings for faster macOS runs
+
+On Apple Silicon, use native arm64 and tune Docker Desktop:
+
+- Prefer native architecture (do **not** force `linux/amd64` unless required).
+- Use **VirtioFS** file sharing.
+- Use **Docker VMM** for better filesystem performance (where stable for your workload).
+- Increase Docker Desktop CPU/memory allocation enough for model loading and conversion batches.
+
+### Docker vs native macOS Metal (MPS)
+
+For this project, **Docker is currently the better default**.
+
+- **Docker (recommended now):**
+    - Reproducible dependencies and consistent output.
+    - Already benchmarked here; `DOCLING_NUM_THREADS=10` was fastest in your runs.
+    - Avoids local dependency issues (for example, platform wheel mismatches).
+
+- **Native macOS + MPS (potentially faster in some cases):**
+    - Can accelerate supported PyTorch operations on Apple Silicon.
+    - Requires a native Python environment where all dependencies resolve cleanly.
+    - More setup variability across machines and package versions.
+
+If you want maximum throughput and are willing to do extra setup, native MPS is worth testing. For reliability and repeatability today, stay with Docker arm64.
 
 ---
 

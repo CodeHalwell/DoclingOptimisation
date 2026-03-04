@@ -1,23 +1,67 @@
 services:
+  # Local development build (cross-platform, Python 3.14)
   docling:
     build:
       context: .
       dockerfile: Dockerfile
+    # Optional override when needed:
+    #   DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose up --build
     # Note: Ensure host directories ./input and ./output exist before running:
     #   mkdir -p input output
     volumes:
       - ./input:/home/docling/input:ro
       - ./output:/home/docling/output
-    deploy:
-      resources:
-        limits:
-          # Account for model loading overhead (2-3 GB) plus working memory.
-          memory: 6g
-          cpus: "8"
-        reservations:
-          memory: 3g
-          cpus: "4"
+    # Compose-native resource limits (apply on Docker Desktop/macOS).
+    mem_limit: 6g
+    cpus: 8
     environment:
       - HF_HOME=/home/docling/.cache/huggingface
-    entrypoint: ["python", "process.py"]
+      - DOCLING_NUM_THREADS=${DOCLING_NUM_THREADS:-10}
+    entrypoint: ["uv", "run", "--frozen", "process.py"]
+    command: ["input/mortgage.pdf"]
+
+  # Azure CPU build (4 vCPUs, 8 Gi, x86-64)
+  # Usage: docker compose --profile cpu up --build
+  docling-cpu:
+    profiles: ["cpu"]
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    volumes:
+      - ./input:/home/docling/input:ro
+      - ./output:/home/docling/output
+    mem_limit: 8g
+    cpus: 4
+    environment:
+      - HF_HOME=/home/docling/.cache/huggingface
+      # DOCLING_NUM_THREADS=4 is baked into the image; override here if needed
+    entrypoint: ["uv", "run", "--frozen", "process.py"]
+    command: ["input/mortgage.pdf"]
+
+  # Azure GPU build (NC8as-T4, 8 vCPUs, 56 Gi, NVIDIA T4)
+  # Usage: docker compose --profile gpu up --build
+  # Note: Requires NVIDIA Container Toolkit and a GPU on the host.
+  # On macOS without GPU, this will build but not run.
+  docling-gpu:
+    profiles: ["gpu"]
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    volumes:
+      - ./input:/home/docling/input:ro
+      - ./output:/home/docling/output
+    mem_limit: 56g
+    cpus: 8
+    environment:
+      - HF_HOME=/home/docling/.cache/huggingface
+      # DOCLING_DEVICE=cuda, DOCLING_NUM_THREADS=8, and NVIDIA_VISIBLE_DEVICES=all
+      # are baked into the image; override here if needed
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    entrypoint: ["uv", "run", "--frozen", "process.py"]
     command: ["input/mortgage.pdf"]
