@@ -10,7 +10,8 @@ mkdir -p "$OUT_DIR"
 
 if [[ ! -f "$PDF_PATH" ]]; then
   echo "Error: PDF not found at '$PDF_PATH'"
-  echo "Usage: bash scripts/benchmark_threads.sh [path/to/file.pdf]"
+  echo "Usage: bash scripts/benchmark_threads.sh [input/path/to/file.pdf]"
+  echo "Note: the PDF must be located under the ./input directory so it is visible inside the Docker container."
   exit 1
 fi
 
@@ -35,4 +36,10 @@ for t in "${THREADS[@]}"; do
 done
 
 echo
-shasum "$OUT_DIR/attention_mac_t6.md" "$OUT_DIR/attention_mac_t10.md" "$OUT_DIR/attention_mac_t12.md"
+if command -v sha256sum &>/dev/null; then
+  sha256sum "$OUT_DIR/attention_mac_t6.md" "$OUT_DIR/attention_mac_t10.md" "$OUT_DIR/attention_mac_t12.md"
+elif command -v shasum &>/dev/null; then
+  shasum -a 256 "$OUT_DIR/attention_mac_t6.md" "$OUT_DIR/attention_mac_t10.md" "$OUT_DIR/attention_mac_t12.md"
+else
+  echo "Warning: no sha256sum or shasum found; skipping checksum verification"
+fi

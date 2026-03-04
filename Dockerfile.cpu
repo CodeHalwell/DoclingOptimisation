@@ -17,8 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 ARG UV_INSTALLER_VERSION=0.10.4
+ARG UV_INSTALLER_SHA256=169fd7c68bdd40f80ab25635b1e10adfc8cef58b4935017e8560c87639d4544c
 ADD https://astral.sh/uv/${UV_INSTALLER_VERSION}/install.sh /uv-installer.sh
-RUN sh /uv-installer.sh && rm /uv-installer.sh
+RUN echo "${UV_INSTALLER_SHA256}  /uv-installer.sh" | sha256sum -c - \
+    && sh /uv-installer.sh && rm /uv-installer.sh
 ENV PATH="/root/.local/bin:$PATH"
 
 ENV UV_COMPILE_BYTECODE=1 \
