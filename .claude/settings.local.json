@@ -36,7 +36,11 @@
       "WebFetch(domain:www.infracost.io)",
       "WebFetch(domain:markheath.net)",
       "WebFetch(domain:techcommunity.microsoft.com)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(chmod +x:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
